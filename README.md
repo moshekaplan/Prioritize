@@ -26,6 +26,9 @@ As such, the following features will be extracted:
    *	The presence of EXIF data, and specific EXIF fields (GPS, date, and camera model)
 
 # Running
-This script requires python 2.7 and the python-opencv package.
+This script requires:
+ * python 2.7,
+ * python-opencv package, and
+ * numpy
 
-To install python-opencv, run: `apt-get install python-opencv`
+To install these dependencies on Ubuntu, run: `apt-get install python-opencv python-numpy`
