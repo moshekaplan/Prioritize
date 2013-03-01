@@ -32,7 +32,7 @@ import argparse
 # PIL
 import Image
 
-# OpenCV-
+# OpenCV
 import cv2
 import cv2.cv as cv
 
