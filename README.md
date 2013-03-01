@@ -24,3 +24,11 @@ As such, the following features will be extracted:
    *	If the image contains a credit card
    *  If the image contains something that looks like a photo ID
    *	The presence of EXIF data, and specific EXIF fields (GPS, date, and camera model)
+
+# Running
+This script requires:
+ * python 2.7,
+ * python-opencv package, and
+ * numpy
+
+To install these dependencies on Ubuntu, run: `apt-get install python-opencv python-numpy`
