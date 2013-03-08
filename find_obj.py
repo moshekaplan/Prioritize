@@ -2,7 +2,8 @@
 
 '''
 Uses SURF to match two images.
-
+  Finds common features between two images and draws them
+    
 Based on the sample code from opencv:
   samples/python2/find_obj.py
 
@@ -114,7 +115,6 @@ def explore_match(win, img1, img2, kp_pairs, status = None, H = None):
 ###############################################################################
 
 if __name__ == '__main__':
-    """Test code: Uses the two specified"""
     if len(sys.argv) < 3:
         print "No filenames specified"
         print "USAGE: find_obj.py <image1> <image2>"

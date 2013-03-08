@@ -111,7 +111,8 @@ CREATE_JPEG_TABLE_QUERY = '''
     file_id INTEGER,
     well_formed BOOLEAN,
     faces INTEGER,
-    screenshot BOOLEAN
+    screenshot BOOLEAN, 
+    screenshot_fname TEXT
   )'''
 
 # Insert statements
@@ -119,7 +120,7 @@ CREATE_JPEG_TABLE_QUERY = '''
 INSERT_FILE_QUERY = '''INSERT INTO files (filename,filesize,md5,sha512) VALUES (?, ?, ?, ?)'''
 
 INSERT_JPEG_QUERY = '''INSERT INTO jpeg
-  (file_id, well_formed, faces, screenshot) VALUES (?, ?, ?, ?)'''
+  (file_id, well_formed, faces, screenshot, screenshot_fname) VALUES (?, ?, ?, ?, ?)'''
 
 # SELECT
 SELECT_SHA512_QUERY = '''SELECT sha512 FROM files WHERE sha512=? LIMIT 1'''
@@ -137,8 +138,8 @@ def insert_file_entry(cursor, filename, filesize, md5, sha512):
   cursor.execute(INSERT_FILE_QUERY, (filename, filesize, md5, sha512))
   return cursor.lastrowid
   
-def insert_jpeg_entry(cursor, fileid, well_formed, contains_face, screenshot):
-  cursor.execute(INSERT_JPEG_QUERY, (fileid, well_formed, contains_face, screenshot))
+def insert_jpeg_entry(cursor, fileid, well_formed, contains_face, screenshot, screenshot_fname):
+  cursor.execute(INSERT_JPEG_QUERY, (fileid, well_formed, contains_face, screenshot, screenshot_fname))
 
 def find_sha512(cursor, sha512):
   result = cursor.execute(SELECT_SHA512_QUERY, (sha512,))
@@ -246,16 +247,18 @@ def is_screenshot(img):
     total = 0
     results = {}
     matched = False
+    fname = ''
     for group, icons in g_icons.iteritems():
       results[group] = 0
       for i, icon in enumerate(icons):
         try:
           matches = find_obj.match_images(icon, img)
         except:
-          return False
+          return False, fname
         
         if len(matches) > 0:
-          print_debug("Matched as being %s/%s" % (group, g_icon_names[group][i] ))
+          fname = "%s/%s" % (group, g_icon_names[group][i] )
+          #print_debug("Matched as being %s/%s" % (group, g_icon_names[group][i] ))
           results[group] += 1
           matched = True
           break
@@ -264,7 +267,7 @@ def is_screenshot(img):
       
     # Now that we have results, let's examine them:
     total = sum(results.itervalues())
-    return total > 0
+    return total > 0, fname
     
 
 def process_jpeg(cursor, file_id, fname):
@@ -273,17 +276,18 @@ def process_jpeg(cursor, file_id, fname):
   well_structured = False
   faces = 0
   screenshot= False
+  screenshot_fname = ''
 
   well_structured = is_well_structured(fname)
   if well_structured:
     img = load_image(fname)
     faces = get_num_faces(img)
-    screenshot = is_screenshot(img)
+    screenshot, screenshot_fname = is_screenshot(img)
 
   if g_debug:
-    print "Valid: %s, faces: %d, screenshot: %s" % (str(well_structured), faces, str(screenshot))
+    print "Valid: %s, faces: %d, screenshot: %s, screenshot file: %s" % (str(well_structured), faces, str(screenshot), screenshot_fname)
 
-  insert_jpeg_entry(cursor, file_id, well_structured, faces, screenshot)
+  insert_jpeg_entry(cursor, file_id, well_structured, faces, screenshot, screenshot_fname)
   return well_structured
   
 
@@ -340,7 +344,8 @@ def main():
   maxfiles  = args.maxfiles
   path      = args.path
   
-  print_debug("Reading a max of %d files" % maxfiles)
+  if maxfiles:
+    print_debug("Reading a max of %d files" % maxfiles)
   
   # Initialize stored data used for parsing JPEG files
   init_jpeg()
