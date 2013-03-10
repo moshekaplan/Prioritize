@@ -294,6 +294,10 @@ def get_gps(fname):
 def get_skin_type(fname):
     """Gets whether or not there is skin in the image and guesses the type.
     Note: Extremely slow and inaccurate
+    
+    Future Optimization: Run the image through opencv to find which portions
+    are most likely to be a person, and then only examine those portions of
+    the image for skin color.
     """
     image = Image.open(fname)
     contains_skin, skin_type = detect_skin(image)
