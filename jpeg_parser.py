@@ -87,7 +87,7 @@ def load_cascades():
   
 def print_debug(msg):
   if g_debug:
-    print msg
+    print "  DEBUG:", msg
 
 ###############################################################################
 # Database-related functionality
@@ -102,17 +102,22 @@ CREATE_FILES_TABLE_QUERY = '''CREATE TABLE IF NOT EXISTS files (
   filename TEXT,
   filesize INTEGER,
   md5 TEXT,
-  sha512 TEXT
+  sha512 TEXT,
+  UNIQUE (sha512)
   )'''
 
 # Create table for JPEG results
 CREATE_JPEG_TABLE_QUERY = '''
   CREATE TABLE IF NOT EXISTS jpeg (
-    file_id INTEGER,
-    well_formed BOOLEAN,
-    faces INTEGER,
-    screenshot BOOLEAN, 
-    screenshot_fname TEXT
+    file_id           INTEGER,
+    well_formed       BOOLEAN,
+    faces             INTEGER,
+    screenshot        BOOLEAN, 
+    screenshot_fname  TEXT,
+    cc                BOOLEAN, 
+    cc_fname          TEXT, 
+    id                BOOLEAN, 
+    id_fname          TEXT
   )'''
 
 # Insert statements
@@ -120,7 +125,7 @@ CREATE_JPEG_TABLE_QUERY = '''
 INSERT_FILE_QUERY = '''INSERT INTO files (filename,filesize,md5,sha512) VALUES (?, ?, ?, ?)'''
 
 INSERT_JPEG_QUERY = '''INSERT INTO jpeg
-  (file_id, well_formed, faces, screenshot, screenshot_fname) VALUES (?, ?, ?, ?, ?)'''
+  (file_id, well_formed, faces, screenshot, screenshot_fname, cc, cc_fname, id, id_fname) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'''
 
 # SELECT
 SELECT_SHA512_QUERY = '''SELECT sha512 FROM files WHERE sha512=? LIMIT 1'''
@@ -138,8 +143,8 @@ def insert_file_entry(cursor, filename, filesize, md5, sha512):
   cursor.execute(INSERT_FILE_QUERY, (filename, filesize, md5, sha512))
   return cursor.lastrowid
   
-def insert_jpeg_entry(cursor, fileid, well_formed, contains_face, screenshot, screenshot_fname):
-  cursor.execute(INSERT_JPEG_QUERY, (fileid, well_formed, contains_face, screenshot, screenshot_fname))
+def insert_jpeg_entry(cursor, fileid, well_formed, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname):
+  cursor.execute(INSERT_JPEG_QUERY, (fileid, well_formed, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname))
 
 def find_sha512(cursor, sha512):
   result = cursor.execute(SELECT_SHA512_QUERY, (sha512,))
@@ -150,48 +155,43 @@ def find_sha512(cursor, sha512):
 ###############################################################################
 
 ICON_DIR = "./common_desktop_icons"
+CC_DIR = "./cc_images"
+ID_DIR = "./id_images"
 
 def init_jpeg():
     """ Loads in global variables for efficiency purposes"""
-    global g_cascades
-    global g_icons
-    global g_icon_names
     
     # Load in all of the classifiers
+    global g_cascades
     g_cascades = load_cascades()
     
-    fnames = []
-    dirs = []
-    for entry in os.listdir(ICON_DIR):
-        entry = os.path.join(ICON_DIR, entry)
-        if os.path.isdir(entry):
-            dirs.append(entry)
-        elif os.path.isfile(entry):
-            fnames.append(entry)
-        else:
-            print fnames, dirs
-            raise Exception("What is '%s'?" % entry)
+    # Load in the icons
+    global g_icon
+    g_icon = load_imgdir_features(ICON_DIR)  
+       
+    # Next load in the CC's
+    global g_cc
+    g_cc = load_imgdir_features(CC_DIR) 
     
-    g_icons = {}
-    g_icon_names = {}
-    # Load in all of the desktop icons:
-    # First the 'general' icons
-    g_icons['general'] = []
-    g_icon_names['general'] = []
-    
-    for fname in fnames:
-        icon = cv2.imread(fname, 0)
-        g_icons['general'].append(icon)
-        g_icon_names['general'].append(fname)
-    
-    # Then the OS-specific ones
-    for dir_name in dirs:
-        g_icons[dir_name] = []
-        g_icon_names[dir_name] = []
-        for fname in os.listdir(dir_name):
-            icon = cv2.imread(os.path.join(dir_name,fname), 0)
-            g_icons[dir_name].append(icon)
-            g_icon_names[dir_name].append(fname)
+    # Next load in the ID's
+    global g_id
+    g_id = load_imgdir_features(ID_DIR)    
+
+def load_imgdir_features(dirname):
+  """Loads all of the features from all images in the dir"""
+  result = {}
+  for entry in os.listdir(dirname):
+    fname = os.path.join(dirname, entry)
+    if os.path.isfile(fname):
+        try:
+            img = load_image(fname)
+            detector = cv2.SURF(3200)
+            kp, desc = detector.detectAndCompute(img, None)
+             
+            result[fname] = [img, kp, desc]
+        except:
+          continue 
+  return result   
 
 def load_image(fname):
   img = cv2.imread(fname)
@@ -232,62 +232,54 @@ def get_num_faces(img):
 #def contains_flesh():
 #  pass
     
-
-def is_screenshot(img):
+def within_group(img, group):
     """\
-    Checks if the supplied image is likely to be a screenshot.
-    
-    This check is done by searching for a series of common icons.
-    Additionally, it will attempt to make a guess about the OS based on the
-    amount of matches of OS-specific images.
+    Checks if the supplied image is within a group of images.
+    The group is represented as a dictionary of filename:image
     
     Note: This is extremely slow and is prone to false positives!
-    """
-
-    total = 0
-    results = {}
-    matched = False
-    fname = ''
-    for group, icons in g_icons.iteritems():
-      results[group] = 0
-      for i, icon in enumerate(icons):
-        try:
-          matches = find_obj.match_images(icon, img)
-        except:
-          return False, fname
-        
-        if len(matches) > 0:
-          fname = "%s/%s" % (group, g_icon_names[group][i] )
-          #print_debug("Matched as being %s/%s" % (group, g_icon_names[group][i] ))
-          results[group] += 1
-          matched = True
-          break
-      if matched:
-        break
-      
-    # Now that we have results, let's examine them:
-    total = sum(results.itervalues())
-    return total > 0, fname
     
+    Returns whether or not it matched and the filename ('' if it didn't)
+    """
+    for fname, details in group.iteritems():
+      try:
+        #import pdb; pdb.set_trace()
+        small_img, kp, desc = details
+        matches = find_obj.match_images(small_img, img, (kp, desc))
+        if len(matches) > 0:
+          return True, fname
+      except:
+        return False, ''
+    return False, ''
+   
+
 
 def process_jpeg(cursor, file_id, fname):
   """Do all of the work required to process a single JPEG"""
 
   well_structured = False
   faces = 0
-  screenshot= False
-  screenshot_fname = ''
+  is_screenshot, screenshot_fname = False, ''
+  is_cc, cc_fname = False, ''
+  is_id, id_fname = False, ''
 
   well_structured = is_well_structured(fname)
   if well_structured:
     img = load_image(fname)
     faces = get_num_faces(img)
-    screenshot, screenshot_fname = is_screenshot(img)
+    is_screenshot, screenshot_fname = within_group(img, g_icon)
+    is_cc, cc_fname = within_group(img, g_cc)
+    is_id, id_fname = within_group(img, g_id)
+     
 
-  if g_debug:
-    print "Valid: %s, faces: %d, screenshot: %s, screenshot file: %s" % (str(well_structured), faces, str(screenshot), screenshot_fname)
 
-  insert_jpeg_entry(cursor, file_id, well_structured, faces, screenshot, screenshot_fname)
+  print_debug("Valid: %s" % str(well_structured))
+  print_debug("Amount of faces: %d" % faces)
+  print_debug("Screenshot? %s: %s" % (str(is_screenshot), screenshot_fname))
+  print_debug("CC? %s: %s" % (str(is_cc), cc_fname))
+  print_debug("ID? %s: %s" % (str(is_id), id_fname))
+
+  insert_jpeg_entry(cursor, file_id, well_structured, faces, is_screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname)
   return well_structured
   
 
@@ -304,8 +296,7 @@ def process_file(cursor, fname):
   
   # If it's already in the DB, no processing is necessary
   if find_sha512(cursor, sha512):
-    if g_debug:
-      print "It's a duplicate! Skipped!"
+    print_debug("It's a duplicate! Skipped!")
     return "duplicate"
   
   file_id = insert_file_entry(cursor, fname, size, md5, sha512)

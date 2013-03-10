@@ -21,13 +21,21 @@ import cv2
 # Image Matching
 ###############################################################################
 
-def match_images(img1, img2):
+def match_images(img1, img2, img1_features = None, img2_features = None):
     """Given two images, returns the matches"""
     detector = cv2.SURF(3200)
     matcher = cv2.BFMatcher(cv2.NORM_L2)
 
-    kp1, desc1 = detector.detectAndCompute(img1, None)
-    kp2, desc2 = detector.detectAndCompute(img2, None)
+    if img1_features is None:
+        kp1, desc1 = detector.detectAndCompute(img1, None)
+    else:
+        kp1, desc1 = img1_features
+    
+    if img2_features is None:
+        kp2, desc2 = detector.detectAndCompute(img2, None)
+    else:
+        kp2, desc2 = img2_features
+    
     #print 'img1 - %d features, img2 - %d features' % (len(kp1), len(kp2))
 
     raw_matches = matcher.knnMatch(desc1, trainDescriptors = desc2, k = 2) #2
