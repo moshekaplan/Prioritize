@@ -97,7 +97,7 @@ def print_debug(msg):
 ###############################################################################
 
 # Database filename
-DEFAULT_DB_NAME = "prioritize_data.sqlite"
+DEFAULT_DB_NAME = "prioritize.sqlite"
 
 # Create table statements
 CREATE_FILES_TABLE_QUERY = '''CREATE TABLE IF NOT EXISTS files (
@@ -251,7 +251,7 @@ def get_num_faces(img):
   return max_faces
 
 
-def within_group(img, group):
+def within_group(img, group, minmatches=0):
     """\
     Checks if the supplied image is within a group of images.
     The group is represented as a dictionary of filename:image
@@ -260,13 +260,15 @@ def within_group(img, group):
     
     Returns whether or not it matched and the filename ('' if it didn't)
     """
+    count = 0
     for fname, details in group.iteritems():
       try:
-        #import pdb; pdb.set_trace()
         small_img, kp, desc = details
         matches = find_obj.match_images(small_img, img, (kp, desc))
         if len(matches) > 0:
-          return True, fname
+          count += 1
+        if count > minmatches:
+          return True, fname  
       except:
         return False, ''
     return False, ''
@@ -319,7 +321,7 @@ def process_jpeg(cursor, file_id, fname):
   if well_structured:
     img = load_image(fname)
     faces = get_num_faces(img)
-    is_screenshot, screenshot_fname = within_group(img, g_icon)
+    is_screenshot, screenshot_fname = within_group(img, g_icon, 2)
     is_cc, cc_fname = within_group(img, g_cc)
     is_id, id_fname = within_group(img, g_id)
     if g_jpeg_options['enable_gps']:

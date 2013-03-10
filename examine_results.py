@@ -110,7 +110,7 @@ def write_file(fname, imagesinfo):
 # General functionality
 ###############################################################################
 
-DEFAULT_DB_NAME     = "prioritize_data.sqlite"
+DEFAULT_DB_NAME     = "prioritize.sqlite"
 DEFAULT_OUTPUT_NAME = "prioritize.html"
 
 def build_argparser():
