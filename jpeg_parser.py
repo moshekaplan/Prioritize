@@ -38,7 +38,9 @@ import cv2
 import cv2.cv as cv
 
 # local
+import EXIF
 import find_obj
+from detect_skin import detect_skin
 
 ###############################################################################
 # General tools
@@ -118,7 +120,10 @@ CREATE_JPEG_TABLE_QUERY = '''
         cc                BOOLEAN, 
         cc_fname          TEXT, 
         id                BOOLEAN, 
-        id_fname          TEXT
+        id_fname          TEXT,
+        contains_skin     BOOLEAN,
+        skin_type         TEXT,
+        gps_data          TEXT
     )'''
 
 # Insert statements
@@ -126,7 +131,7 @@ CREATE_JPEG_TABLE_QUERY = '''
 INSERT_FILE_QUERY = '''INSERT INTO files (filename,filesize,md5,sha512) VALUES (?, ?, ?, ?)'''
 
 INSERT_JPEG_QUERY = '''INSERT INTO jpeg
-  (file_id, well_formed, faces, screenshot, screenshot_fname, cc, cc_fname, id, id_fname) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'''
+  (file_id, well_formed, faces, screenshot, screenshot_fname, cc, cc_fname, id, id_fname, contains_skin, skin_type, gps_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
 
 # SELECT
 SELECT_SHA512_QUERY = '''SELECT sha512 FROM files WHERE sha512=? LIMIT 1'''
@@ -147,8 +152,8 @@ def insert_file_entry(cursor, filename, filesize, md5, sha512):
     return cursor.lastrowid
 
 
-def insert_jpeg_entry(cursor, fileid, well_formed, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname):
-    cursor.execute(INSERT_JPEG_QUERY, (fileid, well_formed, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname))
+def insert_jpeg_entry(cursor, fileid, well_formed, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname, contains_skin, skin_type, gps_data):
+    cursor.execute(INSERT_JPEG_QUERY, (fileid, well_formed, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname, contains_skin, skin_type, gps_data))
 
 
 def find_sha512(cursor, sha512):
@@ -165,7 +170,7 @@ CC_DIR = "./cc_images"
 ID_DIR = "./id_images"
 
 
-def init_jpeg():
+def init_jpeg(enable_skin, enable_gps):
     """ Loads in global variables for efficiency purposes"""
     
     # Load in all of the classifiers
@@ -182,7 +187,13 @@ def init_jpeg():
     
     # Next load in the ID's
     global g_id
-    g_id = load_imgdir_features(ID_DIR)    
+    g_id = load_imgdir_features(ID_DIR)
+    
+    # Set the options:
+    global g_jpeg_options
+    g_jpeg_options = {}
+    g_jpeg_options['enable_skin'] = enable_skin
+    g_jpeg_options['enable_gps'] = enable_gps
 
 
 def load_imgdir_features(dirname):
@@ -239,9 +250,6 @@ def get_num_faces(img):
     max_faces = max(max_faces, len(rects))    
   return max_faces
 
-#def contains_flesh():
-#  pass
-
 
 def within_group(img, group):
     """\
@@ -264,6 +272,33 @@ def within_group(img, group):
     return False, ''
 
 
+def get_gps(fname):
+    """Uses EXIF.py to extract GPS info.
+    This is extremely slow.
+    """
+    gps_info = {}
+    
+    with open(fname, 'rb') as fh:
+        try:
+            exif = EXIF.process_file(fh)
+            for tag, value in exif.iteritems():
+                if 'gps' in tag.lower():
+                  gps_info[tag] = value
+        except:
+            pass
+    if not gps_info:
+      gps_info = ''
+    return str(gps_info)
+
+
+def get_skin_type(fname):
+    """Gets whether or not there is skin in the image and guesses the type.
+    Note: Extremely slow and inaccurate
+    """
+    image = Image.open(fname)
+    contains_skin, skin_type = detect_skin(image)
+    return contains_skin, skin_type
+
 def process_jpeg(cursor, file_id, fname):
   """Do all of the work required to process a single JPEG"""
 
@@ -272,6 +307,9 @@ def process_jpeg(cursor, file_id, fname):
   is_screenshot, screenshot_fname = False, ''
   is_cc, cc_fname = False, ''
   is_id, id_fname = False, ''
+  gps_data = ''
+  contains_skin = ''
+  skin_type = ''
 
   well_structured = is_well_structured(fname)
   if well_structured:
@@ -280,14 +318,23 @@ def process_jpeg(cursor, file_id, fname):
     is_screenshot, screenshot_fname = within_group(img, g_icon)
     is_cc, cc_fname = within_group(img, g_cc)
     is_id, id_fname = within_group(img, g_id)
+    if g_jpeg_options['enable_gps']:
+      gps_data = get_gps(fname)
+    if g_jpeg_options['enable_skin']:
+      contains_skin, skin_type = get_skin_type(fname)
 
   print_debug("Valid: %s" % str(well_structured))
   print_debug("Amount of faces: %d" % faces)
   print_debug("Screenshot? %s: %s" % (str(is_screenshot), screenshot_fname))
   print_debug("CC? %s: %s" % (str(is_cc), cc_fname))
   print_debug("ID? %s: %s" % (str(is_id), id_fname))
+  if g_jpeg_options['enable_gps']:
+    print_debug("GPS Data: %s" % gps_data)
+  if g_jpeg_options['enable_skin']:
+    print_debug("Contains skin? %s: Skin Type:%s" % (str(contains_skin),skin_type))
+  contains_skin, skin_type
 
-  insert_jpeg_entry(cursor, file_id, well_structured, faces, is_screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname)
+  insert_jpeg_entry(cursor, file_id, well_structured, faces, is_screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname, contains_skin, skin_type, gps_data)
   return well_structured
   
 
@@ -329,7 +376,15 @@ def build_argparser():
   parser.add_argument('--maxfiles', dest='maxfiles', action='store', type=int,
                       default=None,
                       help='Specify an upper limit to the amount of files that are examined')
-             
+  
+  # Enable skin checking (slow and inaccurate):
+  parser.add_argument('--enable_skin', dest='enable_skin', action='store_true',
+                      help='Enable skin-type checking (slow and inaccurate)')
+ 
+  # Enable GPS data extraction (slow):
+  parser.add_argument('--enable_gps', dest='enable_gps', action='store_true',
+                      help='Enable GPS EXIF-data extraction (slow)')
+  
   # Path to examine (required)
   parser.add_argument(dest='path', help='The root directory of the files to examine')
   return parser
@@ -350,7 +405,7 @@ def main():
         print_debug("Reading a max of %d files" % maxfiles)
   
     # Initialize stored data used for parsing JPEG files
-    init_jpeg()
+    init_jpeg(args.enable_skin, args.enable_gps)
   
     # Open a connection to the database and create it if necessary
     if g_debug:
