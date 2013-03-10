@@ -432,16 +432,21 @@ def main():
     statistics = {}
     statistics['valid'] = 0
     statistics['invalid'] = 0
-    statistics['duplicates']   = 0
+    statistics['duplicates'] = 0
+    statistics['total size'] = 0
+    statistics['valid size'] = 0
     # Process each of them
     for i, fname in enumerate(files):
         if g_debug:
             print "Processing file %d/%d : %s" % (i+1, len(files), fname)
+        size = os.path.getsize(fname)
+        statistics['total size'] += size
         result = process_file(cursor, fname)
         if result == "duplicate":
             statistics['duplicates'] += 1
         elif result is True:
             statistics['valid'] += 1
+            statistics['valid size'] += size
         elif result is False:
             statistics['invalid'] += 1
         else:
@@ -455,7 +460,7 @@ def main():
     print "Statistics"
     if files:
         print "Processed %d files in %0.3f seconds, for an average of %0.3f seconds/file" % (len(files),processing_time, processing_time/len(files))
-
+        print "A total of %d bytes were processed. %d bytes of valid data" % (statistics['total size'], statistics['valid size'])
         print "%d/%d (%0.3f%%) files were duplicates" % (statistics['duplicates'], len(files), statistics['invalid']*100.0/len(files))
         print "%d/%d (%0.3f%%) files were valid"   % (statistics['valid'], len(files), statistics['valid']*100.0/len(files))
         print "%d/%d (%0.3f%%) files were invalid" % (statistics['invalid'], len(files), statistics['invalid']*100.0/len(files))
