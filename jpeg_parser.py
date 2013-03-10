@@ -44,50 +44,51 @@ import find_obj
 # General tools
 ###############################################################################
 
+
 def get_file_list(rootdir, maxfiles=None):
-  """Returns a list of up to maxfiles fully-qualified filenames"""
-  all_files = []
-  
-  # First get the full listing
-  for dirpath, dirnames, filenames in os.walk(rootdir):
-    if maxfiles is not None and len(all_files) >= maxfiles:
-        break
-    for fname in filenames:
-      if maxfiles is not None and len(all_files) >= maxfiles:
-        break
-      all_files.append(os.path.abspath( os.path.join(dirpath, fname) ))
-         
-    
-  return all_files
+    """Returns a list of up to maxfiles fully-qualified filenames"""
+    all_files = []
+
+    # First get the full listing
+    for dirpath, dirnames, filenames in os.walk(rootdir):
+        if maxfiles is not None and len(all_files) >= maxfiles:
+            break
+        for fname in filenames:
+            if maxfiles is not None and len(all_files) >= maxfiles:
+                break
+            all_files.append(os.path.abspath(os.path.join(dirpath, fname)))
+
+    return all_files
+
 
 def get_hashes(fname):
-  """Returns the MD5 and SHA-512 hashes for a file"""
-  with open(fname,'rb') as fh:
-    data = fh.read()
-    md5 = hashlib.md5(data).hexdigest()
-    sha512 = hashlib.sha512(data).hexdigest()
-    return md5, sha512
-  
+    """Returns the MD5 and SHA-512 hashes for a file"""
+    with open(fname, 'rb') as fh:
+        data = fh.read()
+        md5 = hashlib.md5(data).hexdigest()
+        sha512 = hashlib.sha512(data).hexdigest()
+        return md5, sha512
+
+
 def load_cascades():
-  fnames = ['./haarcascades/haarcascade_frontalface_alt.xml',
+    fnames = ['./haarcascades/haarcascade_frontalface_alt.xml', 
             './haarcascades/haarcascade_frontalface_alt2.xml']
-  
-  cascades= []
-  
-  for cascade_fn in fnames:
-    if os.path.exists(cascade_fn) and os.path.isfile(cascade_fn):
-      cascade = cv2.CascadeClassifier(cascade_fn)
-      cascades.append(cascade)
-  if not cascades:
-    print "Failed to load any classifier!"
-    sys.exit(1)
-  
-  return cascades
-  
-  
+    cascades= []
+
+    for cascade_fn in fnames:
+        if os.path.exists(cascade_fn) and os.path.isfile(cascade_fn):
+            cascade = cv2.CascadeClassifier(cascade_fn)
+            cascades.append(cascade)
+    if not cascades:
+        print "Failed to load any classifier!"
+        sys.exit(1)
+
+    return cascades
+
+
 def print_debug(msg):
-  if g_debug:
-    print "  DEBUG:", msg
+    if g_debug:
+        print "  DEBUG:", msg
 
 ###############################################################################
 # Database-related functionality
@@ -108,17 +109,17 @@ CREATE_FILES_TABLE_QUERY = '''CREATE TABLE IF NOT EXISTS files (
 
 # Create table for JPEG results
 CREATE_JPEG_TABLE_QUERY = '''
-  CREATE TABLE IF NOT EXISTS jpeg (
-    file_id           INTEGER,
-    well_formed       BOOLEAN,
-    faces             INTEGER,
-    screenshot        BOOLEAN, 
-    screenshot_fname  TEXT,
-    cc                BOOLEAN, 
-    cc_fname          TEXT, 
-    id                BOOLEAN, 
-    id_fname          TEXT
-  )'''
+    CREATE TABLE IF NOT EXISTS jpeg (
+        file_id           INTEGER,
+        well_formed       BOOLEAN,
+        faces             INTEGER,
+        screenshot        BOOLEAN, 
+        screenshot_fname  TEXT,
+        cc                BOOLEAN, 
+        cc_fname          TEXT, 
+        id                BOOLEAN, 
+        id_fname          TEXT
+    )'''
 
 # Insert statements
 
@@ -130,25 +131,30 @@ INSERT_JPEG_QUERY = '''INSERT INTO jpeg
 # SELECT
 SELECT_SHA512_QUERY = '''SELECT sha512 FROM files WHERE sha512=? LIMIT 1'''
            
+
 def create_db(cursor):
-  cursor.execute(CREATE_FILES_TABLE_QUERY)
-  cursor.execute(CREATE_JPEG_TABLE_QUERY)
-  pass
+    cursor.execute(CREATE_FILES_TABLE_QUERY)
+    cursor.execute(CREATE_JPEG_TABLE_QUERY)
+
 
 def close_db(conn):
-  conn.commit()
-  conn.close()
+    conn.commit()
+    conn.close()
+
 
 def insert_file_entry(cursor, filename, filesize, md5, sha512):
-  cursor.execute(INSERT_FILE_QUERY, (filename, filesize, md5, sha512))
-  return cursor.lastrowid
-  
+    cursor.execute(INSERT_FILE_QUERY, (filename, filesize, md5, sha512))
+    return cursor.lastrowid
+
+
 def insert_jpeg_entry(cursor, fileid, well_formed, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname):
-  cursor.execute(INSERT_JPEG_QUERY, (fileid, well_formed, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname))
+    cursor.execute(INSERT_JPEG_QUERY, (fileid, well_formed, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname))
+
 
 def find_sha512(cursor, sha512):
   result = cursor.execute(SELECT_SHA512_QUERY, (sha512,))
   return result.fetchone()
+
   
 ###############################################################################
 # Image processing
@@ -157,6 +163,7 @@ def find_sha512(cursor, sha512):
 ICON_DIR = "./common_desktop_icons"
 CC_DIR = "./cc_images"
 ID_DIR = "./id_images"
+
 
 def init_jpeg():
     """ Loads in global variables for efficiency purposes"""
@@ -177,6 +184,7 @@ def init_jpeg():
     global g_id
     g_id = load_imgdir_features(ID_DIR)    
 
+
 def load_imgdir_features(dirname):
   """Loads all of the features from all images in the dir"""
   result = {}
@@ -193,9 +201,11 @@ def load_imgdir_features(dirname):
           continue 
   return result   
 
+
 def load_image(fname):
   img = cv2.imread(fname)
   return img
+
 
 def is_well_structured(filename):
   try:
@@ -231,7 +241,8 @@ def get_num_faces(img):
 
 #def contains_flesh():
 #  pass
-    
+
+
 def within_group(img, group):
     """\
     Checks if the supplied image is within a group of images.
@@ -251,7 +262,6 @@ def within_group(img, group):
       except:
         return False, ''
     return False, ''
-   
 
 
 def process_jpeg(cursor, file_id, fname):
@@ -270,8 +280,6 @@ def process_jpeg(cursor, file_id, fname):
     is_screenshot, screenshot_fname = within_group(img, g_icon)
     is_cc, cc_fname = within_group(img, g_cc)
     is_id, id_fname = within_group(img, g_id)
-     
-
 
   print_debug("Valid: %s" % str(well_structured))
   print_debug("Amount of faces: %d" % faces)
@@ -286,6 +294,7 @@ def process_jpeg(cursor, file_id, fname):
 ###############################################################################
 # Tie everything up!
 ###############################################################################
+
 
 def process_file(cursor, fname):
   """This is the function responsible for tying together all of the other parsing modules"""
@@ -304,7 +313,8 @@ def process_file(cursor, fname):
   # Then handle the remaining modules  
   valid = process_jpeg(cursor, file_id, fname)
   return valid
-  
+
+
 def build_argparser():
   parser = argparse.ArgumentParser(description='Extracts features for prioritizing recovered data')
   # g_debug mode
@@ -324,71 +334,72 @@ def build_argparser():
   parser.add_argument(dest='path', help='The root directory of the files to examine')
   return parser
 
+
 def main():
-  global g_debug
-  # First the initial argument parsing
-  parser = build_argparser()
-  args = parser.parse_args(sys.argv[1:])
+    global g_debug
+    # First the initial argument parsing
+    parser = build_argparser()
+    args = parser.parse_args(sys.argv[1:])
+
+    g_debug   = args.debug
+    db_name   = args.db
+    maxfiles  = args.maxfiles
+    path      = args.path
   
-  g_debug   = args.debug
-  db_name   = args.db
-  maxfiles  = args.maxfiles
-  path      = args.path
+    if maxfiles:
+        print_debug("Reading a max of %d files" % maxfiles)
   
-  if maxfiles:
-    print_debug("Reading a max of %d files" % maxfiles)
+    # Initialize stored data used for parsing JPEG files
+    init_jpeg()
   
-  # Initialize stored data used for parsing JPEG files
-  init_jpeg()
-  
-  # Open a connection to the database and create it if necessary
-  if g_debug:
-    print "Connecting to DB: '%s'" % db_name
-  conn = sqlite3.connect(db_name)
-  cursor = conn.cursor()
-  create_db(cursor)
-  
-  start_time = time.time()
-  
-  # Get the list of JPEG files to process
-  files = get_file_list(path, maxfiles)
-  if g_debug:
-    print "A list of %d files were retrieved" % len(files)
-  
-  file_time = time.time() - start_time
-  
-  statistics = {}
-  statistics['valid'] = 0
-  statistics['invalid'] = 0
-  statistics['duplicates']   = 0
-  # Process each of them
-  for i, fname in enumerate(files):
+    # Open a connection to the database and create it if necessary
     if g_debug:
-      print "Processing file %d/%d : %s" % (i+1, len(files), fname)
-    result = process_file(cursor, fname)
-    if result == "duplicate":
-      statistics['duplicates'] += 1
-    elif result is True:
-      statistics['valid'] += 1
-    elif result is False:
-      statistics['invalid'] += 1
-    else:
-      raise Exception("Unexpected result for %s" % fname)
-
-  processing_time = time.time() - file_time - start_time  
+        print "Connecting to DB: '%s'" % db_name
+    conn = sqlite3.connect(db_name)
+    cursor = conn.cursor()
+    create_db(cursor)
   
-  close_db(conn)
+    start_time = time.time()
+  
+    # Get the list of JPEG files to process
+    files = get_file_list(path, maxfiles)
+    if g_debug:
+        print "A list of %d files were retrieved" % len(files)
+  
+    file_time = time.time() - start_time
+  
+    statistics = {}
+    statistics['valid'] = 0
+    statistics['invalid'] = 0
+    statistics['duplicates']   = 0
+    # Process each of them
+    for i, fname in enumerate(files):
+        if g_debug:
+            print "Processing file %d/%d : %s" % (i+1, len(files), fname)
+        result = process_file(cursor, fname)
+        if result == "duplicate":
+            statistics['duplicates'] += 1
+        elif result is True:
+            statistics['valid'] += 1
+        elif result is False:
+            statistics['invalid'] += 1
+        else:
+            raise Exception("Unexpected result for %s" % fname)
 
-  print "*"*80
-  print "Statistics"
-  if files:
-    print "Processed %d files in %0.3f seconds, for an average of %0.3f seconds/file" % (len(files),processing_time, processing_time/len(files))
+    processing_time = time.time() - file_time - start_time  
     
-    print "%d/%d (%0.3f%%) files were duplicates" % (statistics['duplicates'], len(files), statistics['invalid']*100.0/len(files))
-    print "%d/%d (%0.3f%%) files were valid"   % (statistics['valid'], len(files), statistics['valid']*100.0/len(files))
-    print "%d/%d (%0.3f%%) files were invalid" % (statistics['invalid'], len(files), statistics['invalid']*100.0/len(files))
-  else:
-    print "No files processed!"
+    close_db(conn)
 
-if __name__ =="__main__":
-  main()
+    print "*"*80
+    print "Statistics"
+    if files:
+        print "Processed %d files in %0.3f seconds, for an average of %0.3f seconds/file" % (len(files),processing_time, processing_time/len(files))
+
+        print "%d/%d (%0.3f%%) files were duplicates" % (statistics['duplicates'], len(files), statistics['invalid']*100.0/len(files))
+        print "%d/%d (%0.3f%%) files were valid"   % (statistics['valid'], len(files), statistics['valid']*100.0/len(files))
+        print "%d/%d (%0.3f%%) files were invalid" % (statistics['invalid'], len(files), statistics['invalid']*100.0/len(files))
+    else:
+        print "No files processed!"
+
+if __name__ == "__main__":
+    main()
