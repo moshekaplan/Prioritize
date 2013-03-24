@@ -1,4 +1,4 @@
-Prioritize-Data
+Prioritize
 ===============
 
 Takes files obtained by file-carving and extracts features from them to help prioritize "interesting" files.
@@ -17,6 +17,7 @@ This program will initially only support image files. For an image file, the fol
 As such, the following features will be extracted:
  *	Removing 'useless' images:
    *	Check if the image is well-structured, and can be opened in a normal image viewer. If it is not, there is no point in examining it further.
+   *  Check the variation of the colors within the image, to rule out images that are a solid color.
  *	Data collection:
    *	The number of faces within the image
    *	If the image looks like it may be a screen capture (based on the presence of artifacts that are usually on a desktop, like a start menu, or icons for well-known programs)
@@ -27,10 +28,9 @@ As such, the following features will be extracted:
 # Running
 This script requires:
  * python 2.7,
- * python-opencv package, and
+ * Python imaging library
+ * Python opencv 2.4.4
  * numpy
 
 To install these dependencies on Ubuntu, run: `apt-get install python-opencv python-numpy`
-
-# Future work:
-*  Check the variation of the colors within the image, to rule out images that are a solid color.
+Then install opencv 2.4.4 from http://opencv.org/downloads.html
