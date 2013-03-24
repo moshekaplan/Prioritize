@@ -25,14 +25,15 @@ def get_query_results(cursor, query):
     cursor.execute(query)
     query_results = cursor.fetchall()
     results = []
-    fields = "filename, faces, screenshot, screenshot_fname, cc, cc_fname, jpeg.id, id_fname, contains_skin, skin_type, gps_data".split(', ')
+    fields = "filename, faces, screenshot, screenshot_fname, cc, cc_fname, jpeg.id, id_fname, contains_skin, skin_type, gps_data, date_data, model_data".split(', ')
     for result in query_results:
         results.append(dict(zip(fields, result)))
     return results
 
 
 def order_by_faces(cursor, maxfiles=None):
-    query = '''SELECT files.filename, faces, screenshot, screenshot_fname, cc, cc_fname, jpeg.id, id_fname, contains_skin, skin_type, gps_data
+    query = '''SELECT files.filename, faces, screenshot, screenshot_fname, cc, cc_fname, 
+                jpeg.id, id_fname, contains_skin, skin_type, gps_data, date_data, model_data
     FROM jpeg JOIN files
         ON files.id = jpeg.file_id
     WHERE well_formed = 1 AND is_solid = 0
@@ -45,7 +46,8 @@ def order_by_faces(cursor, maxfiles=None):
     return get_query_results(cursor, query)
 
 def order_by_cc(cursor, maxfiles=None):
-    query = '''SELECT files.filename, faces, screenshot, screenshot_fname, cc, cc_fname, jpeg.id, id_fname, contains_skin, skin_type, gps_data
+    query = '''SELECT files.filename, faces, screenshot, screenshot_fname, cc, cc_fname, 
+                jpeg.id, id_fname, contains_skin, skin_type, gps_data, date_data, model_data
     FROM jpeg JOIN files
         ON files.id = jpeg.file_id
     WHERE well_formed = 1 
@@ -58,7 +60,8 @@ def order_by_cc(cursor, maxfiles=None):
     return get_query_results(cursor, query)
 
 def order_by_id(cursor, maxfiles=None):
-    query = '''SELECT files.filename, faces, screenshot, screenshot_fname, cc, cc_fname, jpeg.id, id_fname, contains_skin, skin_type, gps_data
+    query = '''SELECT files.filename, faces, screenshot, screenshot_fname, cc, cc_fname, 
+                jpeg.id, id_fname, contains_skin, skin_type, gps_data, date_data, model_data
     FROM jpeg JOIN files
         ON files.id = jpeg.file_id
     WHERE well_formed = 1 
@@ -103,6 +106,8 @@ def write_file(fname, imagesinfo):
             fh.write("<table>")
             fh.write("<tr><td>Filename:</td> <td>%s</td><br/>" % entry['filename'])
             fh.write("<tr><td>GPS Data:</td> <td>%s</td><br/>" % entry['gps_data'])
+            fh.write("<tr><td>Camera Model:</td> <td>%s</td><br/>" % entry['model_data'])
+            fh.write("<tr><td>Image Date:</td> <td>%s</td><br/>" % entry['date_data'])
             fh.write("</table><hr>\n\n")
         fh.write(HTML_FOOTER)
 
