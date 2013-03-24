@@ -35,7 +35,7 @@ def order_by_faces(cursor, maxfiles=None):
     query = '''SELECT files.filename, faces, screenshot, screenshot_fname, cc, cc_fname, jpeg.id, id_fname, contains_skin, skin_type, gps_data
     FROM jpeg JOIN files
         ON files.id = jpeg.file_id
-    WHERE well_formed = 1 
+    WHERE well_formed = 1 AND is_solid = 0
     ORDER BY faces DESC
     '''
 
@@ -129,7 +129,7 @@ def build_argparser():
 
     parser.add_argument('--output', dest='output', action='store',
                       default=DEFAULT_OUTPUT_NAME,
-                      help='Override the default destination filename(default is %s)' % DEFAULT_OUTPUT_NAME)
+                      help='Override the default destination filename (default is %s)' % DEFAULT_OUTPUT_NAME)
     return parser
 
 

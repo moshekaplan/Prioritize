@@ -37,6 +37,9 @@ import Image
 import cv2
 import cv2.cv as cv
 
+# Numpy
+import numpy
+
 # local
 import EXIF
 import find_obj
@@ -114,6 +117,7 @@ CREATE_JPEG_TABLE_QUERY = '''
     CREATE TABLE IF NOT EXISTS jpeg (
         file_id           INTEGER,
         well_formed       BOOLEAN,
+        is_solid          BOOLEAN,
         faces             INTEGER,
         screenshot        BOOLEAN, 
         screenshot_fname  TEXT,
@@ -131,7 +135,7 @@ CREATE_JPEG_TABLE_QUERY = '''
 INSERT_FILE_QUERY = '''INSERT INTO files (filename,filesize,md5,sha512) VALUES (?, ?, ?, ?)'''
 
 INSERT_JPEG_QUERY = '''INSERT INTO jpeg
-  (file_id, well_formed, faces, screenshot, screenshot_fname, cc, cc_fname, id, id_fname, contains_skin, skin_type, gps_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
+  (file_id, well_formed, is_solid, faces, screenshot, screenshot_fname, cc, cc_fname, id, id_fname, contains_skin, skin_type, gps_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
 
 # SELECT
 SELECT_SHA512_QUERY = '''SELECT sha512 FROM files WHERE sha512=? LIMIT 1'''
@@ -152,8 +156,8 @@ def insert_file_entry(cursor, filename, filesize, md5, sha512):
     return cursor.lastrowid
 
 
-def insert_jpeg_entry(cursor, fileid, well_formed, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname, contains_skin, skin_type, gps_data):
-    cursor.execute(INSERT_JPEG_QUERY, (fileid, well_formed, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname, contains_skin, skin_type, gps_data))
+def insert_jpeg_entry(cursor, fileid, well_formed, is_solid, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname, contains_skin, skin_type, gps_data):
+    cursor.execute(INSERT_JPEG_QUERY, (fileid, well_formed, is_solid, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname, contains_skin, skin_type, gps_data))
 
 
 def find_sha512(cursor, sha512):
@@ -232,7 +236,29 @@ def is_well_structured(filename):
   except:
     return False
 
+def is_solid_color(img):
+  """A color is defined as 'mostly solid' if there are less than 3 buckets with
+   values > 0 for each color: R,G, and B"""
   
+  color = [ (255,0,0),(0,255,0),(0,0,255) ]
+  
+  for ch,col in enumerate(color):
+    # Calculates the histogram
+    hist_item = cv2.calcHist([img],[ch],None,[16],[0,16]) 
+    # Normalize the value to fall below 255, to fit in image 'h'
+    cv2.normalize(hist_item,hist_item,0,255,cv2.NORM_MINMAX) 
+    hist=numpy.int32(numpy.around(hist_item))
+    
+    # Count how many buckets have a value > 0
+    cnt = 0
+    for arr in hist:
+      if arr[0] > 0:
+        cnt +=1
+      if cnt > 3:
+        return False
+  return True
+
+
 def get_num_faces(img):
   """\
   Magic from https://github.com/Itseez/opencv/blob/master/samples/python2/facedetect.py
@@ -309,6 +335,7 @@ def process_jpeg(cursor, file_id, fname):
   """Do all of the work required to process a single JPEG"""
 
   well_structured = False
+  is_solid = False
   faces = 0
   is_screenshot, screenshot_fname = False, ''
   is_cc, cc_fname = False, ''
@@ -320,27 +347,32 @@ def process_jpeg(cursor, file_id, fname):
   well_structured = is_well_structured(fname)
   if well_structured:
     img = load_image(fname)
-    faces = get_num_faces(img)
-    is_screenshot, screenshot_fname = within_group(img, g_icon, 2)
-    is_cc, cc_fname = within_group(img, g_cc)
-    is_id, id_fname = within_group(img, g_id)
-    if g_jpeg_options['enable_gps']:
-      gps_data = get_gps(fname)
-    if g_jpeg_options['enable_skin']:
-      contains_skin, skin_type = get_skin_type(fname)
+    is_solid = is_solid_color(img)
+    if not is_solid:
+      faces = get_num_faces(img)
+      is_screenshot, screenshot_fname = within_group(img, g_icon, 2)
+      is_cc, cc_fname = within_group(img, g_cc)
+      is_id, id_fname = within_group(img, g_id)
+      if g_jpeg_options['enable_gps']:
+        gps_data = get_gps(fname)
+      if g_jpeg_options['enable_skin']:
+        contains_skin, skin_type = get_skin_type(fname)
 
+  # Mirror the same structure a second time for the debug output
   print_debug("Valid: %s" % str(well_structured))
-  print_debug("Amount of faces: %d" % faces)
-  print_debug("Screenshot? %s: %s" % (str(is_screenshot), screenshot_fname))
-  print_debug("CC? %s: %s" % (str(is_cc), cc_fname))
-  print_debug("ID? %s: %s" % (str(is_id), id_fname))
-  if g_jpeg_options['enable_gps']:
-    print_debug("GPS Data: %s" % gps_data)
-  if g_jpeg_options['enable_skin']:
-    print_debug("Contains skin? %s: Skin Type:%s" % (str(contains_skin),skin_type))
-  contains_skin, skin_type
+  if well_structured:
+    print_debug("Solid Color: %s" % str(is_solid))
+    if not is_solid:
+      print_debug("Amount of faces: %d" % faces)
+      print_debug("Screenshot? %s: %s" % (str(is_screenshot), screenshot_fname))
+      print_debug("CC? %s: %s" % (str(is_cc), cc_fname))
+      print_debug("ID? %s: %s" % (str(is_id), id_fname))
+      if g_jpeg_options['enable_gps']:
+        print_debug("GPS Data: %s" % gps_data)
+      if g_jpeg_options['enable_skin']:
+        print_debug("Contains skin? %s: Skin Type:%s" % (str(contains_skin), skin_type))
 
-  insert_jpeg_entry(cursor, file_id, well_structured, faces, is_screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname, contains_skin, skin_type, gps_data)
+  insert_jpeg_entry(cursor, file_id, well_structured, is_solid, faces, is_screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname, contains_skin, skin_type, gps_data)
   return well_structured
   
 
