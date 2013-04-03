@@ -32,6 +32,9 @@ def get_query_results(cursor, query):
 
 
 def order_by_faces(cursor, maxfiles=None):
+    if g_debug:
+      print '  DEBUG: Prioritizing by the number of faces'
+
     query = '''SELECT files.filename, faces, screenshot, screenshot_fname, cc, cc_fname, 
                 jpeg.id, id_fname, contains_skin, skin_type, gps_data, date_data, model_data
     FROM jpeg JOIN files
@@ -105,9 +108,12 @@ def write_file(fname, imagesinfo):
             fh.write('<img src="%s"></><br/>\n' % entry['filename'])
             fh.write("<table>")
             fh.write("<tr><td>Filename:</td> <td>%s</td><br/>" % entry['filename'])
-            fh.write("<tr><td>GPS Data:</td> <td>%s</td><br/>" % entry['gps_data'])
-            fh.write("<tr><td>Camera Model:</td> <td>%s</td><br/>" % entry['model_data'])
-            fh.write("<tr><td>Image Date:</td> <td>%s</td><br/>" % entry['date_data'])
+            if entry['gps_data']:
+                fh.write("<tr><td>GPS Data:</td> <td>%s</td><br/>" % entry['gps_data'])
+            if entry['model_data']:
+                fh.write("<tr><td>Camera Model:</td> <td>%s</td><br/>" % entry['model_data'])
+            if entry['date_data']:
+                fh.write("<tr><td>Image Date:</td> <td>%s</td><br/>" % entry['date_data'])
             fh.write("</table><hr>\n\n")
         fh.write(HTML_FOOTER)
 
