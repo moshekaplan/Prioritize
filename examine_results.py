@@ -83,6 +83,11 @@ def order_by_id(cursor, maxfiles=None):
 
     return get_query_results(cursor, query)
 
+orderings = {}
+orderings['faces'] = order_by_faces
+orderings['cc'] = order_by_cc
+orderings['id'] = order_by_id
+
 ###############################################################################
 # File-related functionality
 ###############################################################################
@@ -140,6 +145,11 @@ def build_argparser():
     parser.add_argument('--debug', dest='debug', action='store_true',
                       help='Add additional logging data')
 
+    parser.add_argument('--order-by', dest='order_by', action='store',
+                      default='faces',
+                      choices=orderings,
+                      help="Choose which feature you'll use to prioritize the results (default is faces)")
+                      
     parser.add_argument('--db', dest='db', action='store',
                       default=DEFAULT_DB_NAME,
                       help='Override the default source database (default is %s)' % DEFAULT_DB_NAME)
@@ -168,8 +178,9 @@ def main():
     # Open a connection to the database    
     cursor = open_db(db_name)
 
-    results = order_by_faces(cursor, maxfiles)
-    header_msg = "The results are ordered by the number of faces found"
+    order_by = orderings[args.order_by]
+    results = order_by(cursor, maxfiles)
+    header_msg = "The results are ordered by %s" % args.order_by
 
     write_file(output, header_msg, results)
     print "Open %s to see the results" % output
