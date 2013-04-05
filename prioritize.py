@@ -441,9 +441,9 @@ def build_argparser():
   parser.add_argument('--enable_skin', dest='enable_skin', action='store_true',
                       help='Enable skin-type checking (slow and inaccurate)')
  
-  # Enable EXIF data extraction (slow):
-  parser.add_argument('--enable_exif', dest='enable_exif', action='store_true',
-                      help='Enable EXIF-data extraction (GPS, Model, and Date) (slow)')
+  # Disable EXIF data extraction (slow):
+  parser.add_argument('--disable_exif', dest='enable_exif', action='store_false',
+                      help='Disable EXIF-data extraction (GPS, Model, and Date) (slow)')
   
   # Path to examine (required)
   parser.add_argument(dest='path', help='The root directory of the files to examine')
