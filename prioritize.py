@@ -31,7 +31,8 @@ import argparse
 
 
 # PIL
-import Image
+import PIL.Image
+import PIL.ExifTags
 
 # OpenCV
 import cv2
@@ -41,8 +42,8 @@ import cv2.cv as cv
 import numpy
 
 # local
-import EXIF
 import find_obj
+from ocr_text import ocr_text
 from detect_skin import detect_skin
 
 ###############################################################################
@@ -129,7 +130,8 @@ CREATE_JPEG_TABLE_QUERY = '''
         skin_type         TEXT,
         gps_data          TEXT,
         date_data         TEXT,
-        model_data        TEXT
+        model_data        TEXT,
+        ocr_text          TEXT
     )'''
 
 # Insert statements
@@ -138,8 +140,8 @@ INSERT_FILE_QUERY = '''INSERT INTO files (filename,filesize,md5,sha512) VALUES (
 
 INSERT_JPEG_QUERY = '''INSERT INTO jpeg
   (file_id, well_formed, is_solid, faces, screenshot, screenshot_fname, cc, cc_fname, 
-    id, id_fname, contains_skin, skin_type, gps_data, date_data, model_data)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
+    id, id_fname, contains_skin, skin_type, gps_data, date_data, model_data, ocr_text)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
 
 # SELECT
 SELECT_SHA512_QUERY = '''SELECT sha512 FROM files WHERE sha512=? LIMIT 1'''
@@ -160,8 +162,8 @@ def insert_file_entry(cursor, filename, filesize, md5, sha512):
     return cursor.lastrowid
 
 
-def insert_jpeg_entry(cursor, fileid, well_formed, is_solid, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname, contains_skin, skin_type, gps_data, date, model):
-    cursor.execute(INSERT_JPEG_QUERY, (fileid, well_formed, is_solid, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname, contains_skin, skin_type, gps_data, date, model))
+def insert_jpeg_entry(cursor, fileid, well_formed, is_solid, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname, contains_skin, skin_type, gps_data, date, model, text):
+    cursor.execute(INSERT_JPEG_QUERY, (fileid, well_formed, is_solid, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname, contains_skin, skin_type, gps_data, date, model, str(text).decode('utf-8')))
 
 
 def find_sha512(cursor, sha512):
@@ -178,7 +180,7 @@ CC_DIR = "./cc_images"
 ID_DIR = "./id_images"
 
 
-def init_jpeg(enable_skin, enable_exif):
+def init_jpeg(enable_skin, enable_exif, enable_ocr):
     """ Loads in global variables for efficiency purposes"""
     
     # Load in all of the classifiers
@@ -202,6 +204,7 @@ def init_jpeg(enable_skin, enable_exif):
     g_jpeg_options = {}
     g_jpeg_options['enable_skin'] = enable_skin
     g_jpeg_options['enable_exif'] = enable_exif
+    g_jpeg_options['enable_ocr']  = enable_ocr 
 
 
 def load_imgdir_features(dirname):
@@ -229,7 +232,7 @@ def load_image(fname):
 def is_well_structured(filename):
   try:
     # First try using PIL, since it's not as noisy:
-    img = Image.open(filename)
+    img = PIL.Image.open(filename)
     # Then, if that's successful, try it with OpenCV
     img = cv2.imread(filename)
     # It returns None if it fails, instead of raising a useful exception.
@@ -305,34 +308,23 @@ def within_group(img, group, minmatches=0):
 
 
 def get_exif(fname):
-    """Uses EXIF.py to extract EXIF data.
-    This is extremely slow.
-    """
-    gps_info = {}
-    date_info = {}
-    model_info = {}
-    with open(fname, 'rb') as fh:
-        try:
-            exif = EXIF.process_file(fh)
-            for tag, value in exif.iteritems():
-                if 'gps' in tag.lower():
-                    gps_info[tag] = value
-                elif 'DateTime' in tag:
-                    date_info[tag] = value
-                elif 'Model' in tag:
-                    model_info[tag] = value
-                    
-        except:
-            pass
-    # If the dictionary is empty, return an empty string
-    if not gps_info:
-        gps_info = ''
-    if not date_info:
-        date_info = ''
-    if not model_info:
-        model_info = ''    
-
-    return str(gps_info), str(date_info), str(model_info)
+    gps_info = ''
+    date_info = ''
+    model_info = ''
+    try:
+        img = PIL.Image.open(fname)
+        info = img._getexif()
+        for tag, value in info.items():
+            tag = PIL.Image.TAGS.get(tag)
+            if tag and 'GPSInfo' in tag:
+                gps_info = str(value)
+            elif tag and 'DateTimeOriginal' in tag:
+                date_info = str(value)
+            elif tag and 'Model' in tag:
+                model_info = str(value)
+    except:
+        pass
+    return gps_info, date_info, model_info
 
 
 def get_skin_type(fname):
@@ -361,6 +353,7 @@ def process_jpeg(cursor, file_id, fname):
   exif_model = ''
   contains_skin = ''
   skin_type = ''
+  text = ''
 
   well_structured = is_well_structured(fname)
   if well_structured:
@@ -371,6 +364,8 @@ def process_jpeg(cursor, file_id, fname):
       is_screenshot, screenshot_fname = within_group(img, g_icon, 2)
       is_cc, cc_fname = within_group(img, g_cc)
       is_id, id_fname = within_group(img, g_id)
+      if (is_cc or is_id) and g_jpeg_options['enable_ocr']:
+        text = ocr_text(fname)
       if g_jpeg_options['enable_exif']:
         exif_gps, exif_date, exif_model = get_exif(fname)
       if g_jpeg_options['enable_skin']:
@@ -385,6 +380,9 @@ def process_jpeg(cursor, file_id, fname):
       print_debug("Screenshot? %s: %s" % (str(is_screenshot), screenshot_fname))
       print_debug("CC? %s: %s" % (str(is_cc), cc_fname))
       print_debug("ID? %s: %s" % (str(is_id), id_fname))
+      if (is_cc or is_id) and g_jpeg_options['enable_ocr']:
+        print_debug("OCRed text: %s" % (str(text)))
+        
       if g_jpeg_options['enable_exif']:
         print_debug("GPS Data: %s" % exif_gps)
         print_debug("Date Data: %s" % exif_date)
@@ -394,7 +392,7 @@ def process_jpeg(cursor, file_id, fname):
 
   insert_jpeg_entry(cursor, file_id, well_structured, is_solid, faces, is_screenshot,
                      screenshot_fname, is_cc, cc_fname, is_id, id_fname, contains_skin,
-                     skin_type, exif_gps, exif_date, exif_model)
+                     skin_type, exif_gps, exif_date, exif_model, text)
   return well_structured
   
 
@@ -437,14 +435,19 @@ def build_argparser():
                       default=None,
                       help='Specify an upper limit to the amount of files that are examined')
   
-  # Enable skin checking (slow and inaccurate):
-  parser.add_argument('--enable_skin', dest='enable_skin', action='store_true',
-                      help='Enable skin-type checking (slow and inaccurate)')
- 
   # Disable EXIF data extraction (slow):
   parser.add_argument('--disable_exif', dest='enable_exif', action='store_false',
                       help='Disable EXIF-data extraction (GPS, Model, and Date) (slow)')
   
+  # Enable skin checking (slow and inaccurate):
+  parser.add_argument('--enable_skin', dest='enable_skin', action='store_true',
+                      help='Enable skin-type checking (slow and inaccurate)')
+                      
+  # Enable text extraction (slow and noisy):
+  parser.add_argument('--enable_ocr', dest='enable_ocr', action='store_true',
+                      help="Enable text OCRing of ID's and CC's (slow and inaccurate)")
+
+
   # Path to examine (required)
   parser.add_argument(dest='path', help='The root directory of the files to examine')
   return parser
@@ -456,16 +459,16 @@ def main():
     parser = build_argparser()
     args = parser.parse_args(sys.argv[1:])
 
-    g_debug   = args.debug
-    db_name   = args.db
-    maxfiles  = args.maxfiles
-    path      = args.path
-  
+    g_debug     = args.debug
+    db_name     = args.db
+    maxfiles    = args.maxfiles
+    path        = args.path
+ 
     if maxfiles:
         print_debug("Reading a max of %d files" % maxfiles)
   
     # Initialize stored data used for parsing JPEG files
-    init_jpeg(args.enable_skin, args.enable_exif)
+    init_jpeg(args.enable_skin, args.enable_exif, args.enable_ocr)
   
     # Open a connection to the database and create it if necessary
     if g_debug:

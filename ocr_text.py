@@ -15,7 +15,8 @@ api.Init(".", "eng", tesseract.OEM_DEFAULT)
 api.SetPageSegMode(tesseract.PSM_AUTO)
 
 
-def get_text(img):
+def ocr_text(fname):
+    img = cv.LoadImage(fname, cv.CV_LOAD_IMAGE_GRAYSCALE)
     tesseract.SetCvImage(img, api)
     text = api.GetUTF8Text()
     return text
@@ -26,9 +27,7 @@ def main():
         print "No image file specified"
         print "USAGE: find_obj.py <image>"
         sys.exit(1)
-
-    img = cv.LoadImage("test1.png", cv.CV_LOAD_IMAGE_GRAYSCALE)
-    print get_text(img)
+    print get_text('test1.png')
 
 
 if __name__ == "__main__":
