@@ -187,9 +187,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# useful queries for now:
-
-# Faces are most important
-
-
