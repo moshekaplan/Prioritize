@@ -98,7 +98,7 @@ HTML_HEADER = """<html>
     }
     </STYLE>
 </head>
-<body><center><h1>Results generated with Prioritize (<a href="https://github.com/moshekaplan/Prioritize">https://github.com/moshekaplan/Prioritize</a>)</h1><br/>"""
+<body><center><h1>Results generated with <a href="https://github.com/moshekaplan/Prioritize">Prioritize</a></h1><br/>"""
 
 HTML_FOOTER = """</center></body></html> """
 
