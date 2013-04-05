@@ -3,6 +3,17 @@ Prioritize
 
 Takes files obtained by file-carving and extracts features from them to help prioritize "interesting" files.
 
+### Usage
+Prioritize – Extracts data from all files from a supplied directory and stores them into a sqlite database.
+
+`python prioritize.py <path>`
+
+Examine – Reads the sqlite database and generates an HTML report.
+
+`python examine_results.py`
+
+### Description
+
 One of the problems in digital forensics is dealing with the sheer amount of data that can be acquired from a system. The purpose of this project is to determine which files would likely be of most interest for a forensic investigator. A file is considered to be interesting if it has features that are characteristic of files that are useful during an investigation.
 
 All of the collected data will be stored in a SQLite database for easy access afterwards. To facilitate the use of the collected data, `examine_data.py` will generate an HTML file that includes the images in that order.
@@ -25,7 +36,7 @@ As such, the following features will be extracted:
    *  If the image contains something that looks like a photo ID
    *	The presence of EXIF data, and specific EXIF fields (GPS, date, and camera model)
 
-# Running
+# Requirements
 This script requires:
  * python 2.7,
  * Python imaging library
