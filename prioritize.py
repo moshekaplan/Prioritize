@@ -315,7 +315,7 @@ def get_exif(fname):
         img = PIL.Image.open(fname)
         info = img._getexif()
         for tag, value in info.items():
-            tag = PIL.Image.TAGS.get(tag)
+            tag = PIL.ExifTags.TAGS.get(tag)
             if tag and 'GPSInfo' in tag:
                 gps_info = str(value)
             elif tag and 'DateTimeOriginal' in tag:
