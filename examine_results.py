@@ -10,12 +10,20 @@ import argparse
 
 g_debug = False
 
+
+###############################################################################
+# Generic helpers
+###############################################################################
+
+def print_debug(msg):
+    if g_debug:
+        print "  DEBUG:", msg
+        
 ###############################################################################
 # Database-related functionality
 ###############################################################################
 def open_db(db_name):
-    if g_debug:
-        print "Connecting to DB: '%s'" % db_name
+    print_debug("Connecting to DB: '%s'" % db_name)
     conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
     return cursor
@@ -25,18 +33,17 @@ def get_query_results(cursor, query):
     cursor.execute(query)
     query_results = cursor.fetchall()
     results = []
-    fields = "filename, faces, screenshot, screenshot_fname, cc, cc_fname, jpeg.id, id_fname, contains_skin, skin_type, gps_data, date_data, model_data".split(', ')
+    fields = "filename, faces, screenshot, screenshot_fname, cc, cc_fname, jpeg.id, id_fname, contains_skin, skin_type, gps_data, date_data, model_data, ocr_text".split(', ')
     for result in query_results:
         results.append(dict(zip(fields, result)))
     return results
 
 
 def order_by_faces(cursor, maxfiles=None):
-    if g_debug:
-      print '  DEBUG: Prioritizing by the number of faces'
+    print_debug('Prioritizing by the number of faces')
 
     query = '''SELECT files.filename, faces, screenshot, screenshot_fname, cc, cc_fname, 
-                jpeg.id, id_fname, contains_skin, skin_type, gps_data, date_data, model_data
+                jpeg.id, id_fname, contains_skin, skin_type, gps_data, date_data, model_data, ocr_text
     FROM jpeg JOIN files
         ON files.id = jpeg.file_id
     WHERE well_formed = 1 AND is_solid = 0
@@ -50,7 +57,7 @@ def order_by_faces(cursor, maxfiles=None):
 
 def order_by_cc(cursor, maxfiles=None):
     query = '''SELECT files.filename, faces, screenshot, screenshot_fname, cc, cc_fname, 
-                jpeg.id, id_fname, contains_skin, skin_type, gps_data, date_data, model_data
+                jpeg.id, id_fname, contains_skin, skin_type, gps_data, date_data, model_data, ocr_text
     FROM jpeg JOIN files
         ON files.id = jpeg.file_id
     WHERE well_formed = 1 
@@ -64,7 +71,7 @@ def order_by_cc(cursor, maxfiles=None):
 
 def order_by_id(cursor, maxfiles=None):
     query = '''SELECT files.filename, faces, screenshot, screenshot_fname, cc, cc_fname, 
-                jpeg.id, id_fname, contains_skin, skin_type, gps_data, date_data, model_data
+                jpeg.id, id_fname, contains_skin, skin_type, gps_data, date_data, model_data, ocr_text
     FROM jpeg JOIN files
         ON files.id = jpeg.file_id
     WHERE well_formed = 1 
@@ -91,19 +98,20 @@ HTML_HEADER = """<html>
     }
     </STYLE>
 </head>
-<body><center>"""
+<body><center><h1>Results generated with Prioritize (<a href="https://github.com/moshekaplan/Prioritize">https://github.com/moshekaplan/Prioritize</a>)</h1><br/>"""
 
 HTML_FOOTER = """</center></body></html> """
 
-def write_file(fname, imagesinfo):
+def write_file(fname, header_msg, imagesinfo):
     """This function will write the output to a file
     imagesinfo is a list of dictionaries, where each entry is the information
     for an image
     """
 
-    #    filename, faces, screenshot, screenshot_fname, cc, cc_fname, jpeg.id, id_fname, contains_skin, skin_type, gps_data
+    #    filename, faces, screenshot, screenshot_fname, cc, cc_fname, jpeg.id, id_fname, contains_skin, skin_type, gps_data, text 
     with open(fname,'w') as fh:    
         fh.write(HTML_HEADER)
+        fh.write(header_msg + '<br/>')
         for entry in imagesinfo:
             fh.write('<img src="%s"></><br/>\n' % entry['filename'])
             fh.write("<table>")
@@ -114,6 +122,8 @@ def write_file(fname, imagesinfo):
                 fh.write("<tr><td>Camera Model:</td> <td>%s</td><br/>" % entry['model_data'])
             if entry['date_data']:
                 fh.write("<tr><td>Image Date:</td> <td>%s</td><br/>" % entry['date_data'])
+            if entry['ocr_text']:
+                fh.write("<tr><td>OCRed Text:</td> <td>%s</td><br/>" % entry['ocr_text'])
             fh.write("</table><hr>\n\n")
         fh.write(HTML_FOOTER)
 
@@ -159,10 +169,9 @@ def main():
     cursor = open_db(db_name)
 
     results = order_by_faces(cursor, maxfiles)
-    #for result in results:
-        #print result
+    header_msg = "The results are ordered by the number of faces found"
 
-    write_file(output, results)
+    write_file(output, header_msg, results)
     print "Open %s to see the results" % output
 
 if __name__ == "__main__":
