@@ -514,6 +514,9 @@ def main():
                 statistics['invalid'] += 1
             else:
                 raise Exception("Unexpected result for %s" % fname)
+            # Periodically commit the database results
+            if i % 100 == 0:
+              conn.commit()
 
         processing_time = time.time() - file_time - start_time  
     except Exception, e:
