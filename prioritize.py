@@ -162,8 +162,14 @@ def insert_file_entry(cursor, filename, filesize, md5, sha512):
     return cursor.lastrowid
 
 
-def insert_jpeg_entry(cursor, fileid, well_formed, is_solid, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname, contains_skin, skin_type, gps_data, date, model, text):
-    cursor.execute(INSERT_JPEG_QUERY, (fileid, well_formed, is_solid, contains_face, screenshot, screenshot_fname, is_cc, cc_fname, is_id, id_fname, contains_skin, skin_type, gps_data, date, model, str(text).decode('utf-8')))
+def insert_jpeg_entry(cursor, fileid, well_formed, is_solid, contains_face, screenshot,
+      screenshot_fname, is_cc, cc_fname, is_id, id_fname, contains_skin, skin_type, 
+      gps_data, date, model, text):
+      
+    cursor.execute(INSERT_JPEG_QUERY, (fileid, well_formed, is_solid, contains_face, screenshot, 
+        str(screenshot_fname).decode('utf-8'), is_cc, str(cc_fname).decode('utf-8'), is_id, 
+        str(id_fname).decode('utf-8'), contains_skin, str(skin_type).decode('utf-8'), 
+        str(gps_data).decode('utf-8'), str(date).decode('utf-8'), str(model).decode('utf-8'), str(text).decode('utf-8')))
 
 
 def find_sha512(cursor, sha512):
@@ -481,8 +487,7 @@ def main():
   
     # Get the list of JPEG files to process
     files = get_file_list(path, maxfiles)
-    if g_debug:
-        print "A list of %d files were retrieved" % len(files)
+    print "A list of %d files were retrieved" % len(files)
   
     file_time = time.time() - start_time
   
@@ -493,25 +498,28 @@ def main():
     statistics['total size'] = 0
     statistics['valid size'] = 0
     # Process each of them
-    for i, fname in enumerate(files):
-        if g_debug:
+    try:
+        for i, fname in enumerate(files):
             print "Processing file %d/%d : %s" % (i+1, len(files), fname)
-        size = os.path.getsize(fname)
-        statistics['total size'] += size
-        result = process_file(cursor, fname)
-        if result == "duplicate":
-            statistics['duplicates'] += 1
-        elif result is True:
-            statistics['valid'] += 1
-            statistics['valid size'] += size
-        elif result is False:
-            statistics['invalid'] += 1
-        else:
-            raise Exception("Unexpected result for %s" % fname)
+            size = os.path.getsize(fname)
+            print_debug('Size: %d bytes' % size)
+            statistics['total size'] += size
+            result = process_file(cursor, fname)
+            if result == "duplicate":
+                statistics['duplicates'] += 1
+            elif result is True:
+                statistics['valid'] += 1
+                statistics['valid size'] += size
+            elif result is False:
+                statistics['invalid'] += 1
+            else:
+                raise Exception("Unexpected result for %s" % fname)
 
-    processing_time = time.time() - file_time - start_time  
-    
-    close_db(conn)
+        processing_time = time.time() - file_time - start_time  
+    except Exception, e:
+        print "Something bad happened while processing %s!" % fname
+        print e
+        close_db(conn)
 
     print "*"*80
     print "Statistics"
