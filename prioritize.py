@@ -235,6 +235,10 @@ def load_image(fname):
   return img
 
 
+###############################################################################
+# Image Feature Extraction
+###############################################################################
+
 def is_well_structured(filename):
   try:
     # First try using PIL, since it's not as noisy:
@@ -312,27 +316,6 @@ def within_group(img, group, minmatches=0):
         return False, ''
     return False, ''
 
-
-def get_exif(fname):
-    gps_info = ''
-    date_info = ''
-    model_info = ''
-    try:
-        img = PIL.Image.open(fname)
-        info = img._getexif()
-        for tag, value in info.items():
-            tag = PIL.ExifTags.TAGS.get(tag)
-            if tag and 'GPSInfo' in tag:
-                gps_info = str(value)
-            elif tag and 'DateTimeOriginal' in tag:
-                date_info = str(value)
-            elif tag and 'Model' in tag:
-                model_info = str(value)
-    except:
-        pass
-    return gps_info, date_info, model_info
-
-
 def get_skin_type(fname):
     """Gets whether or not there is skin in the image and guesses the type.
     Note: Extremely slow and inaccurate
@@ -344,6 +327,73 @@ def get_skin_type(fname):
     image = Image.open(fname)
     contains_skin, skin_type = detect_skin(image)
     return contains_skin, skin_type
+
+###############################################################################
+# EXIF-specific processing
+###############################################################################
+
+def get_exif(fname):
+    gps_info = ''
+    date_info = ''
+    model_info = ''
+    try:
+        img = PIL.Image.open(fname)
+        info = img._getexif()
+        for tag, value in info.items():
+            tag = PIL.ExifTags.TAGS.get(tag)
+            if tag and 'GPSInfo' in tag:
+                gps_data = {}
+                for gps_tag in value:
+                    sub_decoded = PIL.ExifTags.GPSTAGS.get(gps_tag, gps_tag)
+                    gps_data[sub_decoded] = value[gps_tag]
+                # Now that we have the decoded data data:
+                gps_info = str(get_lat_lon(gps_data))                
+            elif tag and 'DateTimeOriginal' in tag:
+                date_info = str(value)
+            elif tag and 'Model' in tag:
+                model_info = str(value)
+    except:
+        pass
+    return gps_info, date_info, model_info
+
+def get_lat_lon(gps_info):
+    """Returns the latitude and longitude, if available, from the provided GPSInfo exif data"""
+    lat = None
+    lon = None
+		
+    gps_latitude = gps_info.get("GPSLatitude")
+    gps_latitude_ref = gps_info.get('GPSLatitudeRef')
+    gps_longitude = gps_info.get('GPSLongitude')
+    gps_longitude_ref = gps_info.get('GPSLongitudeRef')
+
+    if gps_latitude and gps_latitude_ref:
+        lat = _convert_to_degress(gps_latitude)
+        if gps_latitude_ref != "N":                     
+            lat *= -1
+    
+    if gps_longitude and gps_longitude_ref:
+        lon = _convert_to_degress(gps_longitude)
+        if gps_longitude_ref != "E":
+            lon *= -1
+
+    return lat, lon
+
+def _convert_to_degress(value):
+    """Helper function to convert the GPS coordinates stored in the EXIF to degress in float format"""
+    deg_num, deg_denom = value[0]
+    d = float(deg_num) / float(deg_denom)
+
+    min_num, min_denom = value[1]
+    m = float(min_num) / float(min_denom)
+
+    sec_num, sec_denom = value[1]
+    s = float(sec_num) / float(sec_denom)
+
+    return d + (m / 60.0) + (s / 3600.0)
+
+###############################################################################
+# Tie everything up!
+###############################################################################
 
 def process_jpeg(cursor, file_id, fname):
   """Do all of the work required to process a single JPEG"""
@@ -400,25 +450,19 @@ def process_jpeg(cursor, file_id, fname):
                      screenshot_fname, is_cc, cc_fname, is_id, id_fname, contains_skin,
                      skin_type, exif_gps, exif_date, exif_model, text)
   return well_structured
-  
-
-###############################################################################
-# Tie everything up!
-###############################################################################
-
 
 def process_file(cursor, fname):
   """This is the function responsible for tying together all of the other parsing modules"""
   
   # First do the minimal amount we do for every file
   md5, sha512 = get_hashes(fname)
-  size = os.path.getsize(fname)
   
   # If it's already in the DB, no processing is necessary
   if find_sha512(cursor, sha512):
     print_debug("It's a duplicate! Skipped!")
     return "duplicate"
   
+  size = os.path.getsize(fname)
   file_id = insert_file_entry(cursor, fname, size, md5, sha512)
 
   # Then handle the remaining modules  
