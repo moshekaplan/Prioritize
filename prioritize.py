@@ -51,12 +51,16 @@ from detect_skin import detect_skin
 ###############################################################################
 
 
-def get_file_list(rootdir, maxfiles=None):
+def get_file_list(root, maxfiles=None):
     """Returns a list of up to maxfiles fully-qualified filenames"""
+    
+    if os.path.isfile(root) and (maxfiles is None or maxfiles > 0):
+      return [root]
+
     all_files = []
 
     # First get the full listing
-    for dirpath, dirnames, filenames in os.walk(rootdir):
+    for dirpath, dirnames, filenames in os.walk(root):
         if maxfiles is not None and len(all_files) >= maxfiles:
             break
         for fname in filenames:
@@ -169,7 +173,10 @@ def insert_jpeg_entry(cursor, fileid, well_formed, is_solid, contains_face, scre
     cursor.execute(INSERT_JPEG_QUERY, (fileid, well_formed, is_solid, contains_face, screenshot, 
         str(screenshot_fname).decode('utf-8'), is_cc, str(cc_fname).decode('utf-8'), is_id, 
         str(id_fname).decode('utf-8'), contains_skin, str(skin_type).decode('utf-8'), 
-        str(gps_data).decode('utf-8'), str(date).decode('utf-8'), str(model).decode('utf-8'), str(text).decode('utf-8')))
+        str(gps_data).decode('utf-8'), 
+        str(date).decode('utf-8'), 
+        buffer(str(model)), 
+        buffer(str(text))))
 
 
 def find_sha512(cursor, sha512):
@@ -541,6 +548,7 @@ def main():
     statistics['duplicates'] = 0
     statistics['total size'] = 0
     statistics['valid size'] = 0
+    statistics['processing_time'] = 0
     # Process each of them
     try:
         for i, fname in enumerate(files):
@@ -561,17 +569,15 @@ def main():
             # Periodically commit the database results
             if i % 100 == 0:
               conn.commit()
-
-        processing_time = time.time() - file_time - start_time  
     except Exception, e:
         print "Something bad happened while processing %s!" % fname
-        print e
         close_db(conn)
-
+        raise
+    statistics['processing_time'] = time.time() - file_time - start_time  
     print "*"*80
     print "Statistics"
     if files:
-        print "Processed %d files in %0.3f seconds, for an average of %0.3f seconds/file" % (len(files),processing_time, processing_time/len(files))
+        print "Processed %d files in %0.3f seconds, for an average of %0.3f seconds/file" % (len(files),statistics['processing_time'], statistics['processing_time']/len(files))
         print "A total of %d bytes were processed. %d bytes of valid data" % (statistics['total size'], statistics['valid size'])
         print "%d/%d (%0.3f%%) files were duplicates" % (statistics['duplicates'], len(files), statistics['invalid']*100.0/len(files))
         print "%d/%d (%0.3f%%) files were valid"   % (statistics['valid'], len(files), statistics['valid']*100.0/len(files))
