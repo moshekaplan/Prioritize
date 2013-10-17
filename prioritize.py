@@ -162,7 +162,7 @@ def close_db(conn):
 
 
 def insert_file_entry(cursor, filename, filesize, md5, sha512):
-    cursor.execute(INSERT_FILE_QUERY, (filename, filesize, md5, sha512))
+    cursor.execute(INSERT_FILE_QUERY, (filename.decode('utf-8'), filesize, md5, sha512))
     return cursor.lastrowid
 
 
